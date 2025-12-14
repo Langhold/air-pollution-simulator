@@ -9,13 +9,48 @@
 
 
 /*------------TOOLS------------*/
-Simulator::ComputeType Simulator::userChoice(const char * arg){
+void Simulator::failed_choices(const char* args, const char* message){
+	std::cout << "Using: " << args << " " << message << std::endl;
+	exit(EXIT_FAILURE);
+}
+std::tuple<Simulator::ComputeType, Simulator::ParticlesInit_mod, Simulator::GasType> Simulator::userChoice(const char ** args){
+	return {userChoice_ComputeT(args[1]), userChoice_ParticlesInit(args[2]), userChoice_GasType(args[3])};
+}
+
+Simulator::ComputeType Simulator::userChoice_ComputeT(const char * arg){
 	if (strcmp(arg, "steady")==0){
 		return ComputeType::Steady;
 	} else if (strcmp(arg, "unsteady")==0){
 		return ComputeType::Unsteady;
 	}
+	else{
+		failed_choices(arg, "rather than: (steady or unsteady)");
+	}
 	return ComputeType::Steady;
+}
+
+Simulator::ParticlesInit_mod Simulator::userChoice_ParticlesInit(const char * arg){
+	if (strcmp(arg, "localized")==0){
+		return ParticlesInit_mod::Localized;
+	} else if (strcmp(arg, "discretized")==0){
+		return ParticlesInit_mod::Discretized;
+	}
+	else{
+		failed_choices(arg, "rather than: (localized/discretized)");
+	}
+	return ParticlesInit_mod::Localized;
+}
+
+Simulator::GasType Simulator::userChoice_GasType(const char * arg){
+	if (strcmp(arg, "constant")==0){
+		return GasType::Constant;
+	} else if (strcmp(arg, "nonuniform")==0){
+		return GasType::NonUniform;
+	}
+	else{
+		failed_choices(arg, "rather than: (constant, nonuniform)");
+	}
+	return GasType::Constant;
 }
 
 /*------------ARRAY------------*/
@@ -28,7 +63,7 @@ void Array::print(std::ofstream& file) const{
 		std::cerr << "Error: File doesn't open.\n";
 		exit(EXIT_FAILURE);
 	}
-	std::for_each(data.begin(), data.end(), [&file](auto& value){file << value <<",";});
+	std::for_each(data.begin(), data.end(), [&file](auto& value){file << (double)value <<",";});
 	file << std::endl;
 }
 
@@ -63,72 +98,69 @@ double ConstantGasField::velocity(double position, double time){
 }
 
 double NonUniformGasField::velocity(double position, double time){
-	return sin(std::atan(1)*4*position);
+	return sin(-M_PI*position);
 }
 
 /*------------MODEL------------*/
-template<>
-void Model<ConstantGasField>::compute_velocities(Array& velocities, Array const& positions, double time){
+void Model::compute_velocities(Array& velocities, Array const& positions, double time){
 	std::transform(positions.begin(), positions.end(),velocities.begin(), [this, &time](auto& position){
-		return this->gastype.velocity(position, time);
+		return this->gastype->velocity(position, time);
 	});
 }
 
-template<>
-void Model<ConstantGasField>::compute_positions(Array& positions, Array const& velocities, double time){
-	std::transform(velocities.begin(), velocities.end(),positions.begin(), [&time](auto& velocitiy){
-		return velocitiy * time;
+void Model::compute_positions(Array& positions, Array const& velocities, double time){
+	std::transform(velocities.begin(), velocities.end(),positions.begin(), positions.begin(), [&time](auto& velocitiy, auto& position){
+		return position+velocitiy * time;
 	});
 }
 
 /*------------SIMULATOR------------*/
-void Simulator::SteadySimulator::compute(Array& positions, Array& velocities, Model<ConstantGasField>& particle_model){
+void Simulator::SteadySimulator::compute(Array& positions, Array& velocities, Model& particle_model, std::string& path){
 	std::cout << " --- compute particle evolution at time: " << 0 << "---" << std::endl;
 	particle_model.compute_velocities(velocities, positions, 0);
 	particle_model.compute_positions(positions,velocities, 0);
 	
 	std::cout << "--- Export particles positions at time t = 0 in /Results ---" << std::endl;
-	std::ofstream file("Results/particles_positions");
+	std::ofstream file(path+"_positions.csv");
 	positions.print(file);
 	file.close();
 	
 	std::cout << "--- Export particles velocities at time t = 0 in /Results  ---" << std::endl;
-	std::ofstream file2("Results/particles_positions");
+	std::ofstream file2(path+"_velocities.csv");
 	velocities.print(file2);
 	file2.close();
 }
 
-void Simulator::UnsteadySimulator::compute(Array& positions, Array& velocities, Model<ConstantGasField>& particle_model){
-	const int N = 4;
+void Simulator::UnsteadySimulator::compute(Array& positions, Array& velocities, Model& particle_model, std::string& path){
 	double t = 0;
 	const double dt = 1.0/(double)N;
-	while (t<=1) {
-		
+	while (t<1) {
 		std::cout << "--- Export particles positions at time t = " << t << " in /Results ---" << std::endl;
-		std::ofstream file("Results/particles_positions", std::ios::app);
+		std::ofstream file(path+"_positions.csv", std::ios::app);
 		positions.print(file);
 		file.close();
 		
-		std::cout << "--- Export particles velocities at time t = " << t << " in /Results  ---" << std::endl;
-		std::ofstream file2("Results/particles_velocities", std::ios::app);
+		std::cout << "--- Export particles velocities at time t = " << t << " in /Results ---" << std::endl;
+		std::ofstream file2(path+"_velocities.csv", std::ios::app);
 		velocities.print(file2);
 		file2.close();
 		
-		std::cout << "--- compute particle evolution at time: " << t << "---" << std::endl;
+		std::cout << "--- compute particle evolution at time: " << t << " ---" << std::endl;
 		t += dt;
-		particle_model.compute_velocities(velocities, positions, t);
-		particle_model.compute_positions(positions,velocities, t);
+		particle_model.compute_velocities(velocities, positions, dt);
+		particle_model.compute_positions(positions,velocities, dt);
 	}
 }
 
 /*------------PARTICLES------------*/
-void Simulator::Particles::initialize(ComputeType const& Sim_type, ParticlesInit_mod const& Pos_type){
+void Simulator::Particles::initialize(ComputeType const& Sim_type, ParticlesInit_mod const& Pos_type, GasType const& Gas_type, std::string& path){
 	std::fill(velocity.begin(), velocity.end(), 1);
 	std::vector<int> index(nbpart);
 	std::iota(index.begin(), index.end(),1);
-	std::ofstream file("Results/particles_positions", std::ios::trunc);
+	
+	std::ofstream file(path+"_positions.csv", std::ios::trunc);
 	file.close();
-	std::ofstream file2("Results/particles_velocity", std::ios::trunc);
+	std::ofstream file2(path+"_velocities.csv", std::ios::trunc);
 	
 	file2.close();
 	switch (Pos_type){
@@ -151,8 +183,16 @@ void Simulator::Particles::initialize(ComputeType const& Sim_type, ParticlesInit
 			sim = std::make_unique<UnsteadySimulator>();
 			break;
 	}
+	switch (Gas_type){
+		case GasType::Constant:
+			model.gastype = std::make_unique<ConstantGasField>();
+			break;
+		case GasType::NonUniform:
+			model.gastype = std::make_unique<NonUniformGasField>();
+			break;
+	}
 }
 
-void Simulator::Particles::compute(){
-	sim->compute(position, velocity, model);
+void Simulator::Particles::compute(std::string& path){
+	sim->compute(position, velocity, model, path);
 }
