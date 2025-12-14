@@ -10,33 +10,30 @@
 
 TEST(ParticlesTests, InitParticlesTest){
 	Simulator::Particles p(2);
-	Simulator::ComputeType type = Simulator::ComputeType::Steady;
-	Simulator::ParticlesInit_mod __type = Simulator::ParticlesInit_mod::Discretized;
-	p.initialize(type, __type);
-	for(int i = 0;i<2;++i){
-		bool test = p.position[i] == 0;
-	}
+	const char* args[] = {"steady", "discretized", "nonuniform"};
+	auto [compute_type, initializing_type, gas_type] = Simulator::userChoice(args);
 
 	for(int i = 0;i<2;++i){
-		bool test = p.position[i] == 0;
+		EXPECT_EQ(p.position[i], 0);
 	}
 
 	
 }
 
 TEST(ParticlesTests, ComputeParticlesTest){
-	Simulator::Particles p;
-	Simulator::ComputeType type = Simulator::ComputeType::Steady;
-	Simulator::ParticlesInit_mod __type = Simulator::ParticlesInit_mod::Discretized;
-	p.initialize(type, __type);
-	p.compute();
+	Simulator::Particles p(1);
+	const char* args[] = {"steady", "discretized", "nonuniform"};
+	auto [compute_type, initializing_type, gas_type] = Simulator::userChoice(args);
+	std::string path = "test";
+	p.initialize(compute_type, initializing_type, gas_type, path);
+	p.compute(path);
 }
 
 
 
 TEST(ArrayTests, ArrayTestsConstructor){
 	Array arr(3,1);
-	bool test = arr[0]==1;
+	EXPECT_EQ(arr[0], 1);
 	
 }
 
@@ -45,5 +42,6 @@ TEST(ArrayTests, ArrayTestsOperators){
 	Array arr(3,1);
 	Array arr2(3,2);
 	arr=arr2;
-	bool test = arr[0] == 2;
+	EXPECT_EQ(arr[0], 2);
 }
+
