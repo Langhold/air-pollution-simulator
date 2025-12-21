@@ -196,3 +196,24 @@ void Simulator::Particles::initialize(ComputeType const& Sim_type, ParticlesInit
 void Simulator::Particles::compute(std::string& path){
 	sim->compute(position, velocity, model, path);
 }
+
+void Simulator::Chrono::start(){
+	time = std::chrono::system_clock::now();
+	running = true;
+}
+
+void Simulator::Chrono::stop(){
+	if (running) {
+		const auto end = std::chrono::system_clock::now();
+		rt = std::chrono::duration_cast<std::chrono::milliseconds>(end - time);
+		running = false;
+	}
+}
+
+std::chrono::milliseconds Simulator::Chrono::runtime() const{
+	return rt;
+}
+
+void Simulator::Chrono::print() const{
+	std::cout << "--- Simulator Runtime: " << (float)rt.count()/1000.0f << "s ---" << std::endl;
+}

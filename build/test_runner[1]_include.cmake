@@ -1,0 +1,5 @@
+if(EXISTS "/Users/nolwendolleans/Documents/M1 CHPS/Programmation Orienté Objet pour le Calcul Scientifique/TPS/TP3/TP3/air-pollution-simulator/build/test_runner[1]_tests.cmake")
+  include("/Users/nolwendolleans/Documents/M1 CHPS/Programmation Orienté Objet pour le Calcul Scientifique/TPS/TP3/TP3/air-pollution-simulator/build/test_runner[1]_tests.cmake")
+else()
+  add_test(test_runner_NOT_BUILT test_runner_NOT_BUILT)
+endif()

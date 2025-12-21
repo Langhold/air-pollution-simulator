@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
+#include <chrono>
 
 
 #define N 50
@@ -114,6 +115,7 @@ struct GasField{
      * @return Velocity at the given position and time
      */
 	virtual double velocity(double positions, double time) = 0;
+	virtual ~GasField() = default;
 };
 /** @brief Gas field with constant velocity. */
 struct ConstantGasField : GasField{
@@ -266,7 +268,7 @@ public:
 
 /*------------------------PARTICLES------------------------*/
 /**
- * @brief Container for particle state and simulation control
+ * @brief Particles state and simulation control
  */
 class Particles{
 	Model model;
@@ -306,10 +308,38 @@ public:
 	~Particles() {sim.reset();}
 };
 
+/*------------------------CHRONO------------------------*/
+/**
+ * @brief Chronometer for runtime computing
+ */
+class Chrono{
+	std::chrono::time_point<std::chrono::system_clock> time{};
+	std::chrono::milliseconds rt{};
+	bool running = false;
+public:
+	Chrono() = default;
+	~Chrono() = default;
+	/**
+	 * @brief Store the actual time and start the chrono
+	 */
+	void start();
+	/**
+	 * @brief Store the runtime the chrono
+	 */
+	void stop();
+	/**
+	 * @brief Retrun the runtime computed
+	 * @return runtime stored
+	 */
+	std::chrono::milliseconds runtime() const;
+	
+	void print() const;
+};
 
 } //Simulator
 
 
 
 #endif /* simulator_h */
+
 

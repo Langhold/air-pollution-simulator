@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/main.dir/src/main.cpp.o -o main  -Wl,-rpath,"/Users/nolwendolleans/Documents/M1 CHPS/Programmation Orienté Objet pour le Calcul Scientifique/TPS/TP3/TP3/air-pollution-simulator/build/include" include/libsimulator.dylib
