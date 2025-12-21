@@ -17,10 +17,10 @@ target_link_libraries(main PRIVATE simulator)
 target_link_libraries(test_runner PRIVATE simulator)
 
 find_package(GTest REQUIRED)
+find_package(Threads)
+target_link_libraries(main PRIVATE Threads::Threads)
 
-
-target_link_libraries(test_runner PRIVATE simulator GTest::GTest GTest::Main)
-
+target_link_libraries(test_runner PRIVATE simulator GTest::GTest GTest::Main Threads::Threads)
 
 enable_testing()
 find_package(GTest REQUIRED)

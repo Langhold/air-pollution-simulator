@@ -8,7 +8,7 @@
 #include "simulator.hpp"
 
 
-/*------------TOOLS------------*/
+/*------------------------TOOLS------------------------*/
 void Simulator::failed_choices(const char* args, const char* message){
 	std::cout << "Using: " << args << " " << message << std::endl;
 	exit(EXIT_FAILURE);
@@ -53,7 +53,7 @@ Simulator::GasType Simulator::userChoice_GasType(const char * arg){
 	return GasType::Constant;
 }
 
-/*------------ARRAY------------*/
+/*------------------------ARRAY------------------------*/
 unsigned long int Array::size() const{
 	return data.size();
 }
@@ -92,7 +92,7 @@ const double& Array::operator[](int i) const{
 	return data[i];
 }
 
-/*------------GASFIELD------------*/
+/*------------------------GASFIELD------------------------*/
 double ConstantGasField::velocity(double position, double time){
 	return 1;
 }
@@ -101,7 +101,7 @@ double NonUniformGasField::velocity(double position, double time){
 	return sin(-M_PI*position);
 }
 
-/*------------MODEL------------*/
+/*------------------------MODEL------------------------*/
 void Model::compute_velocities(Array& velocities, Array const& positions, double time){
 	std::transform(positions.begin(), positions.end(),velocities.begin(), [this, &time](auto& position){
 		return this->gastype->velocity(position, time);
@@ -114,7 +114,7 @@ void Model::compute_positions(Array& positions, Array const& velocities, double 
 	});
 }
 
-/*------------SIMULATOR------------*/
+/*------------------------SIMULATOR------------------------*/
 void Simulator::SteadySimulator::compute(Array& positions, Array& velocities, Model& particle_model, std::string& path){
 	std::cout << " --- compute particle evolution at time: " << 0 << "---" << std::endl;
 	particle_model.compute_velocities(velocities, positions, 0);
@@ -152,11 +152,11 @@ void Simulator::UnsteadySimulator::compute(Array& positions, Array& velocities, 
 	}
 }
 
-/*------------PARTICLES------------*/
+/*------------------------PARTICLES------------------------*/
 void Simulator::Particles::initialize(ComputeType const& Sim_type, ParticlesInit_mod const& Pos_type, GasType const& Gas_type, std::string& path){
 	std::fill(velocity.begin(), velocity.end(), 1);
 	std::vector<int> index(nbpart);
-	std::iota(index.begin(), index.end(),1);
+	std::iota(index.begin(), index.end(),0);
 	
 	std::ofstream file(path+"_positions.csv", std::ios::trunc);
 	file.close();
@@ -193,10 +193,76 @@ void Simulator::Particles::initialize(ComputeType const& Sim_type, ParticlesInit
 	}
 }
 
+void Simulator::Particles::initialize_parallel(ComputeType const& Sim_type, ParticlesInit_mod const& Pos_type, GasType const& Gas_type, std::string& path){
+	std::fill(velocity.begin(), velocity.end(), 1);
+	
+	std::ofstream file(path+"_positions.csv", std::ios::trunc);
+	file.close();
+	std::ofstream file2(path+"_velocities.csv", std::ios::trunc);
+	
+	file2.close();
+	switch (Pos_type){
+		case ParticlesInit_mod::Discretized:
+			std::cout << "--- init particles discretized ---" << std::endl;
+			if (nbpart % NTHREADS == 0){
+				//Distribute for each threads a task
+				std::thread threads[NTHREADS];
+				for (unsigned int i = 0; i<NTHREADS; ++i) {
+					threads[i] = std::thread([this, i](){
+						std::vector<int> index(nbpart/NTHREADS);
+						std::iota(index.begin(), index.end(),i*nbpart/NTHREADS);
+						std::transform(index.begin(), index.end(), position.begin()+i*nbpart/NTHREADS, [this](auto& indx){
+					  return -1.0 + (double)indx*2.0/(double)nbpart;
+				  });
+						
+					});
+				}
+				for (unsigned int i = 0; i<NTHREADS; ++i){
+					threads[i].join();
+				}
+			}
+			else{
+				   std::cout << "--- Error: nbpart % NTHREADS ≠ 0 not implemented yet ---" << std::endl;
+				   exit(1);
+			   }
+			break;
+		case ParticlesInit_mod::Localized:
+			std::cout << "--- init particles at 0 ---" << std::endl;
+			std::thread threads[NTHREADS];
+			for (unsigned int i = 0; i<NTHREADS; ++i) {
+				threads[i] = std::thread([this, i](){
+					std::vector<int> index(nbpart/NTHREADS);
+					std::iota(index.begin(), index.end(),i*nbpart/NTHREADS);
+					std::transform(index.begin(), index.end(), position.begin(), [this](auto& indx){
+						return 0;
+					});
+				});
+			}
+			break;
+	}
+	switch (Sim_type){
+		case ComputeType::Steady:
+			sim = std::make_unique<SteadySimulator>();
+			break;
+		case ComputeType::Unsteady:
+			sim = std::make_unique<UnsteadySimulator>();
+			break;
+	}
+	switch (Gas_type){
+		case GasType::Constant:
+			model.gastype = std::make_unique<ConstantGasField>();
+			break;
+		case GasType::NonUniform:
+			model.gastype = std::make_unique<NonUniformGasField>();
+			break;
+	}
+}
+
 void Simulator::Particles::compute(std::string& path){
 	sim->compute(position, velocity, model, path);
 }
 
+/*------------------------Chrono------------------------*/
 void Simulator::Chrono::start(){
 	time = std::chrono::system_clock::now();
 	running = true;
@@ -216,4 +282,36 @@ std::chrono::milliseconds Simulator::Chrono::runtime() const{
 
 void Simulator::Chrono::print() const{
 	std::cout << "--- Simulator Runtime: " << (float)rt.count()/1000.0f << "s ---" << std::endl;
+}
+
+/*------------------------Problem------------------------*/
+void Simulator::Problem::solve() const{
+	std::string path = "Results/particles_unsteady_discretized_nonuniform";
+	
+	Chrono timer;
+	timer.start();
+	
+	Particles p(nb_particles);
+	auto [compute_type, initializing_type, gas_type] = userChoice(argv);
+	p.initialize(compute_type, initializing_type, gas_type, path);
+	p.compute(path);
+	
+	timer.stop();
+	timer.print();
+}
+
+void Simulator::Problem::solve_parallel() const{
+	std::string path = "Results/particles_unsteady_discretized_nonuniform_parallel";
+	Chrono timer;
+	timer.start();
+	
+	Particles p(nb_particles);
+	auto [compute_type, initializing_type, gas_type] = userChoice(argv);
+	
+	
+	p.initialize_parallel(compute_type, initializing_type, gas_type, path);
+	p.compute(path);
+	
+	timer.stop();
+	timer.print();
 }

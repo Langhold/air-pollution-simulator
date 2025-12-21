@@ -22,9 +22,10 @@
 #include <numeric>
 #include <cmath>
 #include <chrono>
-
+#include <thread>
 
 #define N 50
+#define NTHREADS 8
 
 /*------------------------TOOLS------------------------*/
 /**
@@ -299,11 +300,26 @@ public:
      * @param path Output path for results
      */
 	void initialize(ComputeType const& Sim_type, ParticlesInit_mod const& Pos_type, GasType const& Gas_type, std::string& path);
+	
+	/**
+     * @brief Initializes the particles, model and simulator according to configuration using std::threads
+     * @param Sim_type Compute mode
+     * @param Pos_type Particles initialization mode
+     * @param Gas_type Gas field type
+     * @param path Output path for results
+     */
+	void initialize_parallel(ComputeType const& Sim_type, ParticlesInit_mod const& Pos_type, GasType const& Gas_type, std::string& path);
     /**
      * @brief Runs the simulation using the configured simulator
      * @param path Output path for results
      */
 	void compute(std::string& path);
+	
+    /**
+     * @brief Runs the simulation using the configured simulator using std::threads
+     * @param path Output path for results
+     */
+	void compute_parallel(std::string& path);
 	
 	~Particles() {sim.reset();}
 };
@@ -335,6 +351,21 @@ public:
 	
 	void print() const;
 };
+
+
+/*------------------------PROBLEMS------------------------*/
+struct Problem{
+	unsigned int nb_particles;
+	const char ** argv;
+	Problem(const char ** args) : argv(args){nb_particles = 16;}
+	Problem(unsigned int nbparticles, const char ** args) : nb_particles(nbparticles), argv(args){}
+	~Problem() = default;
+	
+	void solve() const;
+	void solve_parallel() const;
+};
+
+
 
 } //Simulator
 
